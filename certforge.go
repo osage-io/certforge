@@ -4,9 +4,6 @@
 
 package main
 
-// version is set during build using -ldflags="-X main.version=v1.x.x"
-var version = "development"
-
 import (
 	"bufio"
 	"crypto/rand"
@@ -18,13 +15,16 @@ import (
 	"encoding/pem"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 )
+
+// version is set during build using -ldflags="-X main.version=v1.x.x"
+var version = "development"
 
 // Helper function to check if a slice contains a string
 func contains(slice []string, str string) bool {
@@ -38,8 +38,8 @@ func contains(slice []string, str string) bool {
 
 // decodeFile decodes and displays information about certificate, CSR, or key files
 func decodeFile(filePath string) error {
-	// Read file
-	data, err := ioutil.ReadFile(filePath)
+// Read file
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("Error reading file: %v", err)
 	}
