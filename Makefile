@@ -32,13 +32,14 @@ ARCH_386=386
 
 # Default target
 .PHONY: all
-all: clean build
+all: clean build install
 
 # Build for the current platform
 .PHONY: build
 build:
 	@echo "Building CertForge..."
 	$(GOBUILD) -o $(BINARY_NAME) $(LDFLAGS)
+	chmod +x $(BINARY_NAME)
 	@echo "Done! Binary is available at ./$(BINARY_NAME)"
 
 # Clean build artifacts
@@ -104,10 +105,17 @@ dist: build-all
 
 # Install the binary
 .PHONY: install
-install: build
+install:
 	@echo "Installing CertForge..."
-	cp $(BINARY_NAME) /usr/local/bin/
-	@echo "Installed to /usr/local/bin/$(BINARY_NAME)"
+	@if [ -w /usr/local/bin ]; then \
+		cp $(BINARY_NAME) /usr/local/bin/ && \
+		chmod +x /usr/local/bin/$(BINARY_NAME) && \
+		echo "Installed to /usr/local/bin/$(BINARY_NAME)"; \
+	else \
+		sudo cp $(BINARY_NAME) /usr/local/bin/ && \
+		sudo chmod +x /usr/local/bin/$(BINARY_NAME) && \
+		echo "Installed to /usr/local/bin/$(BINARY_NAME) (using sudo)"; \
+	fi
 
 # Show help
 .PHONY: help
@@ -115,8 +123,8 @@ help:
 	@echo "CertForge Makefile"
 	@echo ""
 	@echo "Usage:"
-	@echo "  make              Build the binary for the current platform"
-	@echo "  make build        Same as above"
+	@echo "  make              Build and install the binary (default)"
+	@echo "  make build        Build the binary for the current platform"
 	@echo "  make VERSION=v1.1.0 build   Build with specific version"
 	@echo "  make clean        Remove build artifacts"
 	@echo "  make test         Run tests"
@@ -128,4 +136,4 @@ help:
 	@echo "  make install      Install the binary to /usr/local/bin"
 	@echo "  make help         Show this help"
 
-.DEFAULT_GOAL := build
+.DEFAULT_GOAL := all
