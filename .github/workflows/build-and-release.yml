@@ -1,0 +1,155 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }} / ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [linux, darwin, windows]
+        arch: [amd64, arm64]
+        exclude:
+          - os: windows
+            arch: arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Determine version
+        id: determine_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          OUTPUT="certforge-${VERSION}-${{ matrix.os }}-${{ matrix.arch }}"
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o "${OUTPUT}" .
+          
+          # Create archive
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            zip "${OUTPUT%.exe}.zip" "${OUTPUT}"
+            echo "ASSET=${OUTPUT%.exe}.zip" >> $GITHUB_ENV
+          else
+            tar -czvf "${OUTPUT}.tar.gz" "${OUTPUT}"
+            echo "ASSET=${OUTPUT}.tar.gz" >> $GITHUB_ENV
+          fi
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: certforge-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ env.ASSET }}
+          retention-days: 3
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Determine version
+        id: determine_version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: List artifacts
+        run: find . -type f
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: CertForge ${{ env.VERSION }}
+          body: |
+            # CertForge ${{ env.VERSION }}
+            
+            Simple Binary for working with TLS Certificates
+            
+            ## Download
+            - [Linux (amd64)](https://github.com/osage-io/certforge/releases/download/${{ env.VERSION }}/certforge-${{ env.VERSION }}-linux-amd64.tar.gz)
+            - [Linux (arm64)](https://github.com/osage-io/certforge/releases/download/${{ env.VERSION }}/certforge-${{ env.VERSION }}-linux-arm64.tar.gz)
+            - [macOS (Intel)](https://github.com/osage-io/certforge/releases/download/${{ env.VERSION }}/certforge-${{ env.VERSION }}-darwin-amd64.tar.gz)
+            - [macOS (Apple Silicon)](https://github.com/osage-io/certforge/releases/download/${{ env.VERSION }}/certforge-${{ env.VERSION }}-darwin-arm64.tar.gz)
+            - [Windows](https://github.com/osage-io/certforge/releases/download/${{ env.VERSION }}/certforge-${{ env.VERSION }}-windows-amd64.zip)
+            
+            ## Installation
+            
+            ### Linux/macOS
+            ```bash
+            # Download the appropriate version for your system
+            curl -LO https://github.com/osage-io/certforge/releases/download/${{ env.VERSION }}/certforge-${{ env.VERSION }}-[OS]-[ARCH].tar.gz
+            
+            # Extract the binary
+            tar -xzf certforge-${{ env.VERSION }}-[OS]-[ARCH].tar.gz
+            
+            # Move to a directory in your PATH
+            sudo mv certforge-${{ env.VERSION }}-[OS]-[ARCH] /usr/local/bin/certforge
+            
+            # Make it executable
+            sudo chmod +x /usr/local/bin/certforge
+            ```
+            
+            ### Windows
+            1. Download the ZIP file
+            2. Extract the executable
+            3. Optionally, add the directory to your PATH
+            
+            ## Usage
+            ```bash
+            # Generate a CSR and private key
+            certforge
+            
+            # Create a self-signed certificate
+            certforge -s
+            
+            # Decode an existing certificate
+            certforge --decode cert.crt
+            ```
+            
+            For more information, see the [README](https://github.com/osage-io/certforge#readme).
+          draft: false
+          prerelease: false
+          files: |
+            **/certforge-*.tar.gz
+            **/certforge-*.zip

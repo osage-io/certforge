@@ -1,0 +1,14 @@
+Initial commit: CertForge TLS Certificate Generator
+
+This commit introduces CertForge, a simple command-line tool for working with TLS certificates. Features include:
+
+- Certificate Signing Request (CSR) generation
+- Self-signed certificate creation
+- Subject Alternative Names (SANs) support
+- Certificate decoding and analysis
+- Output directory specification
+- Customizable validity periods
+
+The tool provides an interactive interface that guides users through the process of creating certificates with all required fields and offers command-line options for automation.
+
+This implementation is licensed under the Mozilla Public License Version 2.0.
